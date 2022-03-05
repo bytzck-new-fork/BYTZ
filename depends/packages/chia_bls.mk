@@ -1,34 +1,15 @@
-package=bls-dash
-$(package)_version=1.1.0
-$(package)_download_path=https://github.com/dashpay/bls-signatures/archive
-$(package)_download_file=$($(package)_version).tar.gz
-$(package)_file_name=$(package)-$($(package)_download_file)
-$(package)_build_subdir=build
-$(package)_sha256_hash=276c8573104e5f18bb5b9fd3ffd49585dda5ba5f6de2de74759dda8ca5a9deac
+package=chia_bls
+$(package)_version=v20181101
+# It's actually from https://github.com/Chia-Network/bls-signatures, but we have so many patches atm that it's forked
+$(package)_download_path=https://github.com/codablock/bls-signatures/archive
+$(package)_file_name=$($(package)_version).tar.gz
+$(package)_sha256_hash=b3ec74a77a7b6795f84b05e051a0824ef8d9e05b04b2993f01040f35689aa87c
 $(package)_dependencies=gmp cmake
+#$(package)_patches=...TODO (when we switch back to https://github.com/Chia-Network/bls-signatures)
 
-$(package)_relic_version=3a23142be0a5510a3aa93cd6c76fc59d3fc732a5
-$(package)_relic_download_path=https://github.com/relic-toolkit/relic/archive
-$(package)_relic_download_file=$($(package)_relic_version).tar.gz
-$(package)_relic_file_name=relic-toolkit-$($(package)_relic_download_file)
-$(package)_relic_build_subdir=relic
-$(package)_relic_sha256_hash=ddad83b1406985a1e4703bd03bdbab89453aa700c0c99567cf8de51c205e5dde
-
-$(package)_extra_sources=$($(package)_relic_file_name)
-
-define $(package)_fetch_cmds
-$(call fetch_file,$(package),$($(package)_download_path),$($(package)_download_file),$($(package)_file_name),$($(package)_sha256_hash)) && \
-$(call fetch_file,$(package),$($(package)_relic_download_path),$($(package)_relic_download_file),$($(package)_relic_file_name),$($(package)_relic_sha256_hash))
-endef
-
-define $(package)_extract_cmds
-  mkdir -p $($(package)_extract_dir) && \
-  echo "$($(package)_sha256_hash)  $($(package)_source)" > $($(package)_extract_dir)/.$($(package)_file_name).hash && \
-  echo "$($(package)_relic_sha256_hash)  $($(package)_source_dir)/$($(package)_relic_file_name)" >> $($(package)_extract_dir)/.$($(package)_file_name).hash && \
-  $(build_SHA256SUM) -c $($(package)_extract_dir)/.$($(package)_file_name).hash && \
-  tar --strip-components=1 -xf $($(package)_source) -C . && \
-  cp $($(package)_source_dir)/$($(package)_relic_file_name) .
-endef
+#define $(package)_preprocess_cmds
+#  for i in $($(package)_patches); do patch -N -p1 < $($(package)_patch_dir)/$$$$i; done
+#endef
 
 define $(package)_set_vars
   $(package)_config_opts=-DCMAKE_INSTALL_PREFIX=$($(package)_staging_dir)/$(host_prefix)
@@ -37,11 +18,19 @@ define $(package)_set_vars
   $(package)_config_opts+= -DBUILD_BLS_PYTHON_BINDINGS=0 -DBUILD_BLS_TESTS=0 -DBUILD_BLS_BENCHMARKS=0
   $(package)_config_opts_linux=-DOPSYS=LINUX -DCMAKE_SYSTEM_NAME=Linux
   $(package)_config_opts_darwin=-DOPSYS=MACOSX -DCMAKE_SYSTEM_NAME=Darwin
-  $(package)_config_opts_mingw32=-DOPSYS=WINDOWS -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_SHARED_LIBRARY_LINK_C_FLAGS=""
+  $(package)_config_opts_mingw32=-DOPSYS=WINDOWS -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_SHARED_LIBRARY_LINK_C_FLAGS="" -DCMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS=""
   $(package)_config_opts_i686+= -DWSIZE=32
   $(package)_config_opts_x86_64+= -DWSIZE=64
   $(package)_config_opts_arm+= -DWSIZE=32
   $(package)_config_opts_armv7l+= -DWSIZE=32
+  $(package)_config_opts_aarch64+= -DWSIZE=64
+  $(package)_config_opts_riscv64+= -DWSIZE=64
+  $(package)_config_opts_riscv32+= -DWSIZE=32
+  $(package)_config_opts_s390x+= -DWSIZE=64
+  $(package)_config_opts_mipsel+= -DWSIZE=32
+  $(package)_config_opts_mips+= -DWSIZE=32
+  $(package)_config_opts_powerppc64+= -DWSIZE=64
+  $(package)_config_opts_powerppc64le+= -DWSIZE=64
   $(package)_config_opts_debug=-DDEBUG=ON -DCMAKE_BUILD_TYPE=Debug
 
   ifneq ($(darwin_native_toolchain),)
@@ -63,13 +52,16 @@ define $(package)_config_cmds
   export CFLAGS="$($(package)_cflags) $($(package)_cppflags)" && \
   export CXXFLAGS="$($(package)_cxxflags) $($(package)_cppflags)" && \
   export LDFLAGS="$($(package)_ldflags)" && \
+  mkdir -p build && cd build && \
   $(host_prefix)/bin/cmake ../ $($(package)_config_opts)
 endef
 
 define $(package)_build_cmds
+  cd build && \
   $(MAKE) $($(package)_build_opts)
 endef
 
 define $(package)_stage_cmds
+  cd build && \
   $(MAKE) install
 endef
